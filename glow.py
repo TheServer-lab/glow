@@ -13,8 +13,31 @@ import json
 import traceback
 import argparse
 import inspect
-import readline
-import atexit
+
+# Fix for Python 3.14 compatibility with pyreadline
+if sys.version_info >= (3, 10):
+    import collections.abc
+    collections.Callable = collections.abc.Callable
+
+try:
+    import readline
+    import atexit
+    HAVE_READLINE = True
+except Exception as e:
+    # Create dummy readline if import fails
+    class DummyReadline:
+        def read_history_file(self, *args, **kwargs): pass
+        def write_history_file(self, *args, **kwargs): pass
+        def set_history_length(self, *args, **kwargs): pass
+        def add_history(self, *args, **kwargs): pass
+    
+    readline = DummyReadline()
+    
+    # Dummy atexit functions
+    def dummy_register(*args, **kwargs): pass
+    atexit.register = dummy_register
+    HAVE_READLINE = False
+
 import urllib.request
 import urllib.parse
 from typing import List, Dict, Any, Optional, Tuple, Union, Callable, Set
@@ -113,7 +136,7 @@ class TokenType(Enum):
     GREATER_EQUAL = ">="
     LESS_EQUAL = "<="
     ARROW = "->"
-    IN = "in"  # Added as multi-character token
+    
     
     # Literals
     IDENTIFIER = "IDENTIFIER"
@@ -3425,8 +3448,9 @@ class GlowREPL:
         self.allow_http = allow_http
         self.multiline_buffer = ""
         self.in_multiline = False
-        
-        # Setup readline history
+    
+    # Setup readline history if available
+    if HAVE_READLINE:
         histfile = os.path.join(os.path.expanduser("~"), ".glow_history")
         try:
             readline.read_history_file(histfile)
@@ -4039,8 +4063,8 @@ if __name__ == "__main__":
     examples_dir = Path("examples")
     examples_dir.mkdir(exist_ok=True)
     
-    # Write example files
-    (examples_dir / "example.glo").write_text(EXAMPLE_PROGRAM)
+    # Write example files with UTF-8 encoding
+    (examples_dir / "example.glo").write_text(EXAMPLE_PROGRAM, encoding='utf-8')
     
     # Quick demo if no arguments
     if len(sys.argv) == 1:
